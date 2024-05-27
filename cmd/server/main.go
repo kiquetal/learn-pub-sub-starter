@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
+	"github.com/bootdotdev/learn-pub-sub-starter/internal/routing"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"os"
 	"os/signal"
@@ -17,6 +19,16 @@ func main() {
 		panic(err)
 	}
 	fmt.Println("Starting Peril server...")
+
+	channel, err := conn.Channel()
+	if err != nil {
+		fmt.Println("Failed to open a channel")
+		panic(err)
+	}
+	pubsub.PublishJSON(channel, routing.ExchangePerilDirect, routing.PauseKey, routing.PlayingState{
+		IsPaused: true,
+	})
+
 	defer conn.Close()
 
 	sig := make(chan os.Signal, 1)
