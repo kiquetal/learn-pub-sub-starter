@@ -25,6 +25,8 @@ func main() {
 		fmt.Println("Failed to open a channel")
 		panic(err)
 	}
+
+    fmt.Println("Publishing pause message...")
 	pubsub.PublishJSON(channel, routing.ExchangePerilDirect, routing.PauseKey, routing.PlayingState{
 		IsPaused: true,
 	})
