@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/routing"
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -26,12 +27,21 @@ func main() {
 		panic(err)
 	}
 
-    fmt.Println("Publishing pause message...")
+	fmt.Println("Publishing pause message...")
 	pubsub.PublishJSON(channel, routing.ExchangePerilDirect, routing.PauseKey, routing.PlayingState{
 		IsPaused: true,
 	})
 
 	defer conn.Close()
+
+	for {
+		gamelogic.PrintServerHelp()
+		words := gamelogic.GetInput()
+		if len(words) == 0 {
+			continue
+		}
+
+	}
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT)
