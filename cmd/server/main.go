@@ -28,9 +28,6 @@ func main() {
 	}
 
 	fmt.Println("Publishing pause message...")
-	pubsub.PublishJSON(channel, routing.ExchangePerilDirect, routing.PauseKey, routing.PlayingState{
-		IsPaused: true,
-	})
 
 	defer conn.Close()
 
@@ -39,6 +36,21 @@ func main() {
 		words := gamelogic.GetInput()
 		if len(words) == 0 {
 			continue
+		}
+		switch words[0] {
+		case "pause":
+			pubsub.PublishJSON(channel, routing.ExchangePerilDirect, routing.PauseKey, routing.PlayingState{
+				IsPaused: true,
+			})
+		case "resume":
+			pubsub.PublishJSON(channel, routing.ExchangePerilDirect, routing.PauseKey, routing.PlayingState{
+				IsPaused: false,
+			})
+		case "quit":
+			break
+		default:
+			fmt.Println("Unknown command")
+
 		}
 
 	}

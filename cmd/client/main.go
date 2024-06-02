@@ -6,7 +6,9 @@ import (
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/routing"
 	amqp "github.com/rabbitmq/amqp091-go"
-	"time"
+	"os"
+	"os/signal"
+	"syscall"
 )
 
 func main() {
@@ -31,7 +33,15 @@ func main() {
 		fmt.Println("Failed to declare and bind queue")
 		panic(err)
 	}
-	time.Sleep(50 * time.Second)
+
+	//intercept crl+c
+
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, syscall.SIGINT)
+
+	sigs := <-sig
+	fmt.Println("Received signal: ", sigs)
+
 	fmt.Println("Queue created: ", queue.Name)
 
 }
