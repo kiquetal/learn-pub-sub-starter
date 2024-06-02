@@ -34,7 +34,38 @@ func main() {
 		panic(err)
 	}
 
-	//intercept crl+c
+	gs := gamelogic.NewGameState(name)
+
+	for {
+		words := gamelogic.GetInput()
+		if len(words) == 0 {
+			continue
+		}
+		switch words[0] {
+		case "spawn":
+			if len(words) != 3 {
+				fmt.Println("Invalid spawn command")
+				continue
+			}
+			err := gs.CommandSpawn(words)
+			if err != nil {
+				fmt.Println(err)
+			}
+		case "move":
+			if len(words) < 3 {
+				fmt.Println("Invalid move command")
+				continue
+
+			}
+			_, err := gs.CommandMove(words)
+			if err != nil {
+				fmt.Println(err)
+
+			}
+			fmt.Println("Move command executed")
+		}
+
+	}
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT)
