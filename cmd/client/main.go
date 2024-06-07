@@ -51,6 +51,13 @@ func main() {
 
 	gs := gamelogic.NewGameState(name)
 
+	pubsub.DeclareAndBind(conn, routing.ExchangePerilTopic, "game_logs", fmt.Sprintf("game_logs.*"), pubsub.DurableQueue)
+	err = pubsub.SubscribeJSON(conn, routing.ExchangePerilDirect, fmt.Sprintf("pause.%s", name), routing.PauseKey, pubsub.TransientQueue, handlerPause(gs))
+	if err != nil {
+		fmt.Println("Failed to subscribe to pause")
+		panic(err)
+
+	}
 myloop:
 	for {
 		words := gamelogic.GetInput()
@@ -93,4 +100,12 @@ myloop:
 
 	fmt.Println("Queue created: ", queue.Name)
 
+}
+
+func handlerPause(gs *gamelogic.GameState) func(routing.PlayingState) {
+	return func(ps routing.PlayingState) {
+		defer fmt.Println("> ")
+		gs.HandlePause(ps)
+
+	}
 }
