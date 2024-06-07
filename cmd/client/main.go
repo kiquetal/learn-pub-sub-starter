@@ -11,6 +11,21 @@ import (
 	"syscall"
 )
 
+var positionMap map[string]string = map[string]string{
+	"americas":   "americas",
+	"europe":     "europe",
+	"asia":       "asia",
+	"africa":     "africa",
+	"antarctica": "antarctica",
+	"australia":  "australia",
+}
+
+var unitTypeMap map[string]string = map[string]string{
+	"infantry":  "infantry",
+	"cavalry":   "cavalry",
+	"artillery": "artillery",
+}
+
 func main() {
 	fmt.Println("Starting Peril client...")
 	fmt.Println("Connecting to RabbitMQ...")
@@ -36,6 +51,7 @@ func main() {
 
 	gs := gamelogic.NewGameState(name)
 
+myloop:
 	for {
 		words := gamelogic.GetInput()
 		if len(words) == 0 {
@@ -43,29 +59,31 @@ func main() {
 		}
 		switch words[0] {
 		case "spawn":
-			if len(words) != 3 {
-				fmt.Println("Invalid spawn command")
-				continue
-			}
 			err := gs.CommandSpawn(words)
 			if err != nil {
 				fmt.Println(err)
 			}
 		case "move":
-			if len(words) < 3 {
-				fmt.Println("Invalid move command")
-				continue
-
-			}
 			_, err := gs.CommandMove(words)
 			if err != nil {
 				fmt.Println(err)
 
 			}
-			fmt.Println("Move command executed")
+		case "status":
+			gs.CommandStatus()
+		case "help":
+			gamelogic.PrintClientHelp()
+		case "spam":
+			fmt.Println("Spamming not allowed yet!")
+		case "quit":
+			gamelogic.PrintQuit()
+			break myloop
+		default:
+			fmt.Println("Unknown command")
 		}
 
 	}
+	fmt.Println("Output game")
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT)
