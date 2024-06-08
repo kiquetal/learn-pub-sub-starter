@@ -35,6 +35,12 @@ func main() {
 		fmt.Println("Failed to connect to RabbitMQ")
 		panic(err)
 	}
+	channel, err := conn.Channel()
+	if err != nil {
+		fmt.Println("Failed to open a channel")
+		panic(err)
+
+	}
 	name, err := gamelogic.ClientWelcome()
 
 	defer func() {
@@ -58,6 +64,8 @@ func main() {
 		panic(err)
 
 	}
+	pubsub.SubscribeJSON(conn, routing.ExchangePerilTopic, fmt.Sprintf("army_moves.%s", name), "army_moves.*", pubsub.TransientQueue, handlerMove(gs))
+
 myloop:
 	for {
 		words := gamelogic.GetInput()
@@ -71,11 +79,11 @@ myloop:
 				fmt.Println(err)
 			}
 		case "move":
-			_, err := gs.CommandMove(words)
+			movement, err := gs.CommandMove(words)
 			if err != nil {
 				fmt.Println(err)
-
 			}
+			pubsub.PublishJSON(channel, routing.ExchangePerilTopic, fmt.Sprintf("army_moves.%s", name), movement)
 		case "status":
 			gs.CommandStatus()
 		case "help":
@@ -106,6 +114,13 @@ func handlerPause(gs *gamelogic.GameState) func(routing.PlayingState) {
 	return func(ps routing.PlayingState) {
 		defer fmt.Println("> ")
 		gs.HandlePause(ps)
+
+	}
+}
+func handlerMove(gs *gamelogic.GameState) func(state gamelogic.ArmyMove) {
+	return func(mc gamelogic.ArmyMove) {
+		defer fmt.Println("> ")
+		gs.HandleMove(mc)
 
 	}
 }
