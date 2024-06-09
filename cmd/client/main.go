@@ -57,14 +57,14 @@ func main() {
 
 	gs := gamelogic.NewGameState(name)
 
-	pubsub.DeclareAndBind(conn, routing.ExchangePerilTopic, "game_logs", fmt.Sprintf("game_logs.*"), pubsub.DurableQueue)
+	pubsub.DeclareAndBind(conn, routing.ExchangePerilTopic, fmt.Sprintf(routing.GameLogSlug), fmt.Sprintf("game_logs.*"), pubsub.DurableQueue)
 	err = pubsub.SubscribeJSON(conn, routing.ExchangePerilDirect, fmt.Sprintf("pause.%s", name), routing.PauseKey, pubsub.TransientQueue, handlerPause(gs))
 	if err != nil {
 		fmt.Println("Failed to subscribe to pause")
 		panic(err)
 
 	}
-	pubsub.SubscribeJSON(conn, routing.ExchangePerilTopic, fmt.Sprintf("army_moves.%s", name), "army_moves.*", pubsub.TransientQueue, handlerMove(gs))
+	pubsub.SubscribeJSON(conn, routing.ExchangePerilTopic, fmt.Sprintf("%s.%s", routing.ArmyMovesPrefix, name), fmt.Sprintf("%s.*", routing.ArmyMovesPrefix), pubsub.TransientQueue, handlerMove(gs))
 
 myloop:
 	for {
