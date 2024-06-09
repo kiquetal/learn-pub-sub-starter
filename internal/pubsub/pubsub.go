@@ -10,6 +10,14 @@ import (
 const DurableQueue = 0
 const TransientQueue = 1
 
+type AckType string
+
+const (
+	Ack         AckType = "Ack"
+	Nack        AckType = "NackRequeue"
+	NackDiscard AckType = "NackDiscard"
+)
+
 func PublishJSON[T any](ch *amqp.Channel, exchange, key string, data T) error {
 	jsonData, err := json.Marshal(data)
 	if err != nil {
@@ -20,7 +28,7 @@ func PublishJSON[T any](ch *amqp.Channel, exchange, key string, data T) error {
 		Body:        jsonData,
 	})
 }
-func SubscribeJSON[T any](conn *amqp.Connection, exchange, queueName, key string, simpleQueueType int, callback func(T)) error {
+func SubscribeJSON[T any](conn *amqp.Connection, exchange, queueName, key string, simpleQueueType int, callback func(T) AckType) error {
 
 	channel, queue, err := DeclareAndBind(conn, exchange, queueName, key, simpleQueueType)
 	if err != nil {
@@ -42,8 +50,24 @@ func SubscribeJSON[T any](conn *amqp.Connection, exchange, queueName, key string
 			if err != nil {
 				fmt.Println("Failed to unmarshal the message")
 			}
-			callback(data)
-			msg.Ack(false)
+			result := callback(data)
+
+			switch result {
+			case Ack:
+
+				fmt.Println("Ack")
+				msg.Ack(false)
+			case Nack:
+				fmt.Println("Nack")
+				msg.Nack(false, true)
+			case NackDiscard:
+				fmt.Println("NackDiscard")
+				msg.Nack(false, false)
+			default:
+				msg.Ack(false)
+
+			}
+
 		}
 	}()
 
@@ -59,11 +83,16 @@ func DeclareAndBind(conn *amqp.Connection, exchange, queueName, key string, simp
 
 	var queue amqp.Queue
 
+	var table amqp.Table
+	table = amqp.Table{
+		"x-dead-letter-exchange": "peril_dlx",
+	}
+
 	switch simpleQueueType {
 	case DurableQueue:
-		queue, err = channel.QueueDeclare(queueName, true, false, false, false, nil)
+		queue, err = channel.QueueDeclare(queueName, true, false, false, false, table)
 	case TransientQueue:
-		queue, err = channel.QueueDeclare(queueName, false, true, true, false, nil)
+		queue, err = channel.QueueDeclare(queueName, false, true, true, false, table)
 	}
 
 	if err != nil {
