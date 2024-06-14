@@ -57,7 +57,7 @@ func main() {
 
 	gs := gamelogic.NewGameState(name)
 
-	pubsub.DeclareAndBind(conn, routing.ExchangePerilTopic, fmt.Sprintf(routing.GameLogSlug), fmt.Sprintf("game_logs.*"), pubsub.DurableQueue)
+	pubsub.DeclareAndBind(conn, routing.GameLogSlug, fmt.Sprintf(routing.GameLogSlug), fmt.Sprintf("game_logs.*"), pubsub.DurableQueue)
 	err = pubsub.SubscribeJSON(conn, routing.ExchangePerilDirect, fmt.Sprintf("pause.%s", name), routing.PauseKey, pubsub.TransientQueue, handlerPause(gs))
 	if err != nil {
 		fmt.Println("Failed to subscribe to pause")
@@ -67,7 +67,7 @@ func main() {
 
 	pubsub.SubscribeJSON(conn, routing.ExchangePerilTopic, fmt.Sprintf("%s.%s", routing.ArmyMovesPrefix, name), fmt.Sprintf("%s.*", routing.ArmyMovesPrefix), pubsub.TransientQueue, handlerMove(gs, channel))
 
-	pubsub.SubscribeJSON(conn, routing.ExchangeWarTopic, routing.WarRecognitionsPrefix, "#", pubsub.DurableQueue, handlerWar(gs))
+	pubsub.SubscribeJSON(conn, routing.ExchangeWarTopic, routing.WarRecognitionsPrefix, "#", pubsub.DurableQueue, handlerWar(gs, channel))
 myloop:
 	for {
 		words := gamelogic.GetInput()
@@ -130,6 +130,7 @@ func handlerMove(gs *gamelogic.GameState, ch *amqp.Channel) func(state gamelogic
 		case gamelogic.MoveOutComeSafe:
 			return pubsub.Ack
 		case gamelogic.MoveOutcomeMakeWar:
+			fmt.Println("Making war")
 			pubsub.PublishJSON(ch, routing.ExchangeWarTopic, fmt.Sprintf("%s.%s", routing.WarRecognitionsPrefix, gs.GetPlayerSnap().Username), gamelogic.RecognitionOfWar{
 				Attacker: gs.GetPlayerSnap(),
 				Defender: mc.Player,
@@ -142,21 +143,46 @@ func handlerMove(gs *gamelogic.GameState, ch *amqp.Channel) func(state gamelogic
 
 	}
 }
-func handlerWar(gs *gamelogic.GameState) func(war gamelogic.RecognitionOfWar) pubsub.AckType {
+func handlerWar(gs *gamelogic.GameState, ch *amqp.Channel) func(war gamelogic.RecognitionOfWar) pubsub.AckType {
 	return func(wr gamelogic.RecognitionOfWar) pubsub.AckType {
 		defer fmt.Println("> ")
-		outcome, _, _ := gs.HandleWar(wr)
+		outcome, winner, loser := gs.HandleWar(wr)
 		switch outcome {
 		case gamelogic.WarOutcomeNotInvolved:
-			fmt.Println("Not involved in the war->", gs.Player.Username)
 			return pubsub.NackRequeue
 		case gamelogic.WarOutcomeNoUnits:
 			return pubsub.NackDiscard
 		case gamelogic.WarOutcomeYouWon:
+
+			err := pubsub.PublishGob(ch, routing.GameLogSlug, fmt.Sprintf("%s.%s", routing.GameLogSlug, gs.GetPlayerSnap().Username),
+				fmt.Sprintf("%s won a war against %s", winner, loser))
+
+			if err != nil {
+				fmt.Println("Failed to publish game log")
+				return pubsub.NackRequeue
+			}
+
 			return pubsub.Ack
 		case gamelogic.WarOutcomeOpponentWon:
+
+			err := pubsub.PublishGob(ch, routing.GameLogSlug, fmt.Sprintf("%s.%s", routing.GameLogSlug, gs.GetPlayerSnap().Username),
+				fmt.Sprintf("%s won a war against %s", winner, loser))
+
+			if err != nil {
+				fmt.Println("Failed to publish game log")
+				return pubsub.NackRequeue
+
+			}
 			return pubsub.Ack
 		case gamelogic.WarOutcomeDraw:
+			err := pubsub.PublishGob(ch, routing.GameLogSlug, fmt.Sprintf("%s.%s", routing.GameLogSlug, gs.GetPlayerSnap().Username),
+				fmt.Sprintf("A war between %s and %s resulted in a draw", winner, loser))
+
+			if err != nil {
+				fmt.Println("Failed to publish game log")
+				return pubsub.NackRequeue
+
+			}
 			return pubsub.Ack
 		default:
 			fmt.Println("Unknown war outcome")

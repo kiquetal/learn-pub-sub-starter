@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/gob"
 	"fmt"
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
@@ -9,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 )
 
 func main() {
@@ -29,8 +32,10 @@ func main() {
 
 	fmt.Println("Publishing pause message...")
 
-	defer conn.Close()
+	pubsub.SubscribeGeneric(conn, routing.GameLogSlug, routing.GameLogSlug, "games_logs.*", pubsub.DurableQueue, handlerLogs, decodeGob)
 
+	defer conn.Close()
+mainLoop:
 	for {
 		gamelogic.PrintServerHelp()
 		words := gamelogic.GetInput()
@@ -47,7 +52,7 @@ func main() {
 				IsPaused: false,
 			})
 		case "quit":
-			break
+			break mainLoop
 		default:
 			fmt.Println("Unknown command")
 
@@ -61,5 +66,30 @@ func main() {
 	sigs := <-sig
 	fmt.Println("Received signal: ", sigs)
 	fmt.Println("Closing Peril server...")
+
+}
+func handlerLogs(data string) pubsub.AckType {
+
+	defer fmt.Println("> ")
+	var log routing.GameLog
+	log = routing.GameLog{
+		CurrentTime: time.Now(),
+		Message:     data,
+		Username:    "server",
+	}
+
+	gamelogic.WriteLog(log)
+
+	return pubsub.Ack
+}
+
+func decodeGob(data []byte) (string, error) {
+	var message string
+	dec := gob.NewDecoder(bytes.NewReader(data))
+	err := dec.Decode(&message)
+	if err != nil {
+		return "", err
+	}
+	return message, nil
 
 }
