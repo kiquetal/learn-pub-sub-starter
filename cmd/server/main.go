@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 )
 
 func main() {
@@ -33,11 +32,10 @@ func main() {
 	fmt.Println("Publishing pause message...")
 
 	pubsub.SubscribeGeneric(conn, routing.GameLogSlug, routing.GameLogSlug, "games_logs.*", pubsub.DurableQueue, handlerLogs, decodeGob)
-
+	gamelogic.PrintServerHelp()
 	defer conn.Close()
 mainLoop:
 	for {
-		gamelogic.PrintServerHelp()
 		words := gamelogic.GetInput()
 		if len(words) == 0 {
 			continue
@@ -51,6 +49,8 @@ mainLoop:
 			pubsub.PublishJSON(channel, routing.ExchangePerilDirect, routing.PauseKey, routing.PlayingState{
 				IsPaused: false,
 			})
+		case "help":
+			gamelogic.PrintServerHelp()
 		case "quit":
 			break mainLoop
 		default:
@@ -68,27 +68,21 @@ mainLoop:
 	fmt.Println("Closing Peril server...")
 
 }
-func handlerLogs(data string) pubsub.AckType {
+func handlerLogs(data routing.GameLog) pubsub.AckType {
 
 	defer fmt.Println("> ")
-	var log routing.GameLog
-	log = routing.GameLog{
-		CurrentTime: time.Now(),
-		Message:     data,
-		Username:    "server",
-	}
 
-	gamelogic.WriteLog(log)
+	gamelogic.WriteLog(data)
 
 	return pubsub.Ack
 }
 
-func decodeGob(data []byte) (string, error) {
-	var message string
+func decodeGob(data []byte) (routing.GameLog, error) {
+	var message routing.GameLog
 	dec := gob.NewDecoder(bytes.NewReader(data))
 	err := dec.Decode(&message)
 	if err != nil {
-		return "", err
+		return routing.GameLog{}, err
 	}
 	return message, nil
 

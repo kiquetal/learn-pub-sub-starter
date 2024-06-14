@@ -8,7 +8,9 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
+	"time"
 )
 
 var positionMap map[string]string = map[string]string{
@@ -91,7 +93,22 @@ myloop:
 		case "help":
 			gamelogic.PrintClientHelp()
 		case "spam":
-			fmt.Println("Spamming not allowed yet!")
+
+			if len(words) < 2 {
+				fmt.Println("You must specify a number of messages to send")
+				continue
+			}
+			n, _ := strconv.Atoi(words[1])
+			spamword := gamelogic.GetMaliciousLog()
+			for i := 0; i < n; i++ {
+				pubsub.PublishGob(channel, routing.GameLogSlug, fmt.Sprintf("%s.%s", routing.GameLogSlug, name), routing.GameLog{
+					Username:    name,
+					Message:     spamword,
+					CurrentTime: time.Now(),
+				})
+
+			}
+
 		case "quit":
 			gamelogic.PrintQuit()
 			break myloop
